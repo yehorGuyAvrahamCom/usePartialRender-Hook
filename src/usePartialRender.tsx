@@ -10,12 +10,16 @@ export interface IUsePartialRenderProps {
   ref?: MutableRefObject<null>;
   elementSize: number;
   direction?: 'vertical' | 'horizontal';
+  horizontalRef?: MutableRefObject<null>;
+  verticalRef?: MutableRefObject<null>;
 }
 
 export const usePartialRender = ({
   ref,
   elementSize,
   direction = 'vertical',
+  horizontalRef,
+  verticalRef,
 }: IUsePartialRenderProps) => {
   const [shift, setShift] = useState(0);
   const [containerSize, setContainerSize] = useState(0);
@@ -37,13 +41,13 @@ export const usePartialRender = ({
     () => elementSize / containerSize,
     [elementSize, containerSize]
   );
-  const displayItemsCount = useMemo(
+  const itemsCount = useMemo(
     () => Math.floor((containerSize / elementSize) * (1.4 + ratio)),
     [containerSize, elementSize, ratio]
   );
   const scrollSize = useMemo(
-    () => elementSize * displayItemsCount - containerSize,
-    [elementSize, displayItemsCount, containerSize]
+    () => elementSize * itemsCount - containerSize,
+    [elementSize, itemsCount, containerSize]
   );
   const scrollDownBrakePoint = useMemo(
     () => scrollSize * (1 - ratio * 0.4),
@@ -53,6 +57,25 @@ export const usePartialRender = ({
     () => scrollSize - scrollDownBrakePoint,
     [scrollSize, scrollDownBrakePoint]
   );
+
+  const updateVerticalContainer = useCallback(() => {
+    const container = ref?.current as Element | null;
+    const verticalContainer = verticalRef?.current as Element | null;
+
+    if (container && verticalContainer) {
+      verticalContainer.scrollTop = container.scrollTop + shift * elementSize;
+    }
+  }, [ref, verticalRef, elementSize, shift]);
+
+  const updateHorizontalContainer = useCallback(() => {
+    const container = ref?.current as Element | null;
+    const horizonalContainer = horizontalRef?.current as Element | null;
+
+    if (container && horizonalContainer) {
+      horizonalContainer.scrollLeft =
+        container.scrollLeft + shift * elementSize;
+    }
+  }, [ref, horizontalRef, elementSize, shift]);
 
   const handleScroll = useCallback(() => {
     const container = ref?.current as Element | null;
@@ -64,20 +87,27 @@ export const usePartialRender = ({
       if (scrollPosition < scrollUpBrakePoint && shift > 0) {
         if (direction === 'vertical') {
           container.scrollTop += elementSize;
+          updateVerticalContainer();
         } else {
           container.scrollLeft += elementSize;
+          updateHorizontalContainer();
         }
 
         setShift((prev) => prev - 1);
       } else if (scrollPosition > scrollDownBrakePoint) {
         if (direction === 'vertical') {
           container.scrollTop -= elementSize;
+          updateVerticalContainer();
         } else {
           container.scrollLeft -= elementSize;
+          updateHorizontalContainer();
         }
 
         setShift((prev) => prev + 1);
       }
+
+      updateVerticalContainer();
+      updateHorizontalContainer();
     }
   }, [
     shift,
@@ -86,6 +116,8 @@ export const usePartialRender = ({
     elementSize,
     direction,
     ref,
+    updateHorizontalContainer,
+    updateVerticalContainer,
   ]);
 
   useEffect(() => {
@@ -96,5 +128,10 @@ export const usePartialRender = ({
     return () => container?.removeEventListener('scroll', handleScroll);
   }, [handleScroll, ref, direction]);
 
-  return { from: shift, to: shift + displayItemsCount };
+  return {
+    from: shift,
+    to: shift + itemsCount,
+    size: elementSize * itemsCount,
+    itemsCount,
+  };
 };
